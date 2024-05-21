@@ -25,3 +25,8 @@ cargo build
 ```
 cargo run
 ```
+
+### Run Unit tests
+```
+cargo tests
+```
