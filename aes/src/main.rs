@@ -97,13 +97,13 @@ fn group(data: Vec<u8>) -> Vec<[u8; BLOCK_SIZE]> {
 
 /// Does the opposite of the group function
 fn un_group(blocks: Vec<[u8; BLOCK_SIZE]>) -> Vec<u8> {
-	//todo!()
+
 	blocks.into_iter().flat_map(|block| block.to_vec()).collect()
 }
 
 /// Does the opposite of the pad function.
 fn un_pad(data: Vec<u8>) -> Vec<u8> {
-	//todo!()
+
 	let pad_byte = *data.last().unwrap();
 	let pad_len = pad_byte as usize;
 	let data_len = data.len();
@@ -146,7 +146,6 @@ fn ecb_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 fn cbc_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 	// Remember to generate a random initialization vector for the first block.
 
-	//todo!()
 	let mut random_generator = rand::thread_rng();
 	let initialization_vector: [u8; BLOCK_SIZE] = random_generator.gen();
 	let mut prev_block = initialization_vector;
@@ -166,7 +165,7 @@ fn cbc_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 }
 
 fn cbc_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	//todo!()
+
 	let blocks = group(cipher_text);
 	let iv = blocks[0];
 	let mut prev_block = iv;
