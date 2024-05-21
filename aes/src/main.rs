@@ -252,4 +252,18 @@ mod tests {
 
 		assert_eq!(plain_text_value, decrypted_value);
 	}
+
+	#[test]
+    fn test_ecb_encrypt() {
+        let plain_text: Vec<u8> = vec![1, 2, 3];
+        let key: [u8; 16] = [3; 16];
+        let encrypted = ecb_encrypt(plain_text, key);
+        assert_eq!(encrypted, vec![2, 1, 0]);
+
+    #[test]
+    fn test_ecb_decrypt() {
+        let cipher_text: Vec<u8> = vec![2, 1, 0];
+        let key: [u8; 16] = [3; 16];
+        let decrypted = ecb_decrypt(cipher_text, key);
+        assert_eq!(decrypted, vec![1, 2, 3]);
 }
