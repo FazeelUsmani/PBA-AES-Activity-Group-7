@@ -20,7 +20,9 @@ use aes::{
 const BLOCK_SIZE: usize = 16;
 
 fn main() {
-	todo!("Maybe this should be a library crate. TBD");
+	// todo!("Maybe this should be a library crate. TBD");
+    println!("")
+
 }
 
 /// Simple AES encryption
