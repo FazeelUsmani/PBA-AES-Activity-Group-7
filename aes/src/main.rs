@@ -10,7 +10,7 @@
 //! Seriously, ECB is NOT secure. Don't use it irl. We are implementing it here to understand _why_
 //! it is not secure and make the point that the most straight-forward approach isn't always the
 //! best, and can sometimes be trivially broken.
-
+use rand::Rng;
 use aes::{
 	cipher::{generic_array::GenericArray, BlockCipher, BlockDecrypt, BlockEncrypt, KeyInit},
 	Aes128,
@@ -20,9 +20,24 @@ use aes::{
 const BLOCK_SIZE: usize = 16;
 
 fn main() {
-	// todo!("Maybe this should be a library crate. TBD");
-    println!("")
+    let mut rng = rand::thread_rng();
+    let key: [u8; BLOCK_SIZE] = rng.gen();
+    let plain_text = b"Hello, world!".to_vec();
 
+   // ECB
+    let ecb_encrypted = ecb_encrypt(plain_text.clone(), key);
+    let ecb_decrypted = ecb_decrypt(ecb_encrypted, key);
+    println!("ECB decrypted: {:?}", String::from_utf8(ecb_decrypted));
+
+    // CBC
+    let cbc_encrypted = cbc_encrypt(plain_text.clone(), key);
+    let cbc_decrypted = cbc_decrypt(cbc_encrypted, key);
+    println!("CBC decrypted: {:?}", String::from_utf8(cbc_decrypted));
+
+    // CTR
+    let ctr_encrypted = ctr_encrypt(plain_text.clone(), key);
+    let ctr_decrypted = ctr_decrypt(ctr_encrypted, key);
+    println!("CTR decrypted: {:?}", String::from_utf8(ctr_decrypted));
 }
 
 /// Simple AES encryption
@@ -97,12 +112,22 @@ fn group(data: Vec<u8>) -> Vec<[u8; BLOCK_SIZE]> {
 
 /// Does the opposite of the group function
 fn un_group(blocks: Vec<[u8; BLOCK_SIZE]>) -> Vec<u8> {
-	todo!()
+
+	blocks.into_iter().flat_map(|block| block.to_vec()).collect()
 }
 
 /// Does the opposite of the pad function.
 fn un_pad(data: Vec<u8>) -> Vec<u8> {
-	todo!()
+
+	let pad_byte = *data.last().unwrap();
+	let pad_len = pad_byte as usize;
+	let data_len = data.len();
+
+	if pad_len <= BLOCK_SIZE && data_len >= pad_len {
+		data[0..(data_len - pad_len)].to_vec()
+	} else {
+		data
+	}
 }
 
 /// The first mode we will implement is the Electronic Code Book, or ECB mode.
@@ -113,12 +138,11 @@ fn un_pad(data: Vec<u8>) -> Vec<u8> {
 /// One good thing about this mode is that it is parallelizable. But to see why it is
 /// insecure look at: https://www.ubiqsecurity.com/wp-content/uploads/2022/02/ECB2.png
 fn ecb_encrypt(plain_text: Vec<u8>, key: [u8; 16]) -> Vec<u8> {
-	todo!()
+    plain_text.iter().map(|&b| b ^ key[0]).collect()
 }
-
 /// Opposite of ecb_encrypt.
-fn ecb_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	todo!()
+fn ecb_decrypt(cipher_text: Vec<u8>, key: [u8; 16]) -> Vec<u8> {
+    cipher_text.iter().map(|&b| b ^ key[0]).collect()
 }
 
 /// The next mode, which you can implement on your own is cipherblock chaining.
@@ -136,11 +160,50 @@ fn ecb_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 fn cbc_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 	// Remember to generate a random initialization vector for the first block.
 
-	todo!()
+	let mut random_generator = rand::thread_rng();
+	let initialization_vector: [u8; BLOCK_SIZE] = random_generator.gen();
+	let mut prev_block = initialization_vector;
+
+	let mut cipher_blocks = vec![initialization_vector];
+	let padded_text = pad(plain_text);
+	group(padded_text)
+		.into_iter()
+		.for_each(|block| {
+			let xored_block = xor_blocks(block, prev_block);
+			let encrypted_block = aes_encrypt(xored_block, &key);
+			cipher_blocks.push(encrypted_block);
+			prev_block = encrypted_block;
+		});
+
+	un_group(cipher_blocks)
 }
 
 fn cbc_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	todo!()
+
+	let blocks = group(cipher_text);
+	let iv = blocks[0];
+	let mut prev_block = iv;
+
+	let mut decrypted_blocks = Vec::new();
+
+	for block in &blocks[1..] {
+		let decrypted_block = aes_decrypt(*block, &key);
+		let xored_block = xor_blocks(decrypted_block, prev_block);
+		decrypted_blocks.push(xored_block);
+		prev_block = *block;
+	}
+
+	let decrypted_data = un_group(decrypted_blocks);
+	un_pad(decrypted_data)
+}
+
+/// XORs two blocks together
+fn xor_blocks(a: [u8; BLOCK_SIZE], b: [u8; BLOCK_SIZE]) -> [u8; BLOCK_SIZE] {
+	let mut result = [0u8; BLOCK_SIZE];
+	for i in 0..BLOCK_SIZE {
+		result[i] = a[i] ^ b[i];
+	}
+	result
 }
 
 /// Another mode which you can implement on your own is counter mode.
@@ -160,10 +223,129 @@ fn cbc_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
 /// Once again, you will need to generate a random nonce which is 64 bits long. This should be
 /// inserted as the first block of the ciphertext.
 fn ctr_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	// Remember to generate a random nonce
-	todo!()
+    let mut rng = rand::thread_rng();
+    let nonce: u64 = rng.gen();
+    let mut counter: u64 = 0;
+    let mut cipher_text = vec![];
+	let padded_text = pad(plain_text);
+    cipher_text.extend(&nonce.to_ne_bytes());
+
+    for block in padded_text.chunks(BLOCK_SIZE) {
+        let mut nonce_counter = [0u8; BLOCK_SIZE];
+        nonce_counter[..8].copy_from_slice(&nonce.to_ne_bytes());
+        nonce_counter[8..].copy_from_slice(&counter.to_ne_bytes());
+        let encrypted_v = ecb_encrypt(nonce_counter.to_vec(), key);
+        let cipher_block: Vec<u8> = block.iter().zip(encrypted_v.iter()).map(|(&x1, &x2)| x1 ^ x2).collect();
+        cipher_text.extend(cipher_block);
+        counter += 1;
+    }
+
+    cipher_text
 }
 
 fn ctr_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	todo!()
+    let nonce = u64::from_ne_bytes(cipher_text[..8].try_into().unwrap());
+    let mut counter: u64 = 0;
+    let mut plain_text = vec![];
+
+    for block in cipher_text[8..].chunks(BLOCK_SIZE) {
+        let mut nonce_counter = [0u8; BLOCK_SIZE];
+        nonce_counter[..8].copy_from_slice(&nonce.to_ne_bytes());
+        nonce_counter[8..].copy_from_slice(&counter.to_ne_bytes());
+        let encrypted_v = ecb_encrypt(nonce_counter.to_vec(), key);
+        let plain_block: Vec<u8> = block.iter().zip(encrypted_v.iter()).map(|(&x1, &x2)| x1 ^ x2).collect();
+        plain_text.extend(plain_block);
+        counter += 1;
+    }
+
+    un_pad(plain_text)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_cbc_encrypt_decrypt() {
+		let key = [0u8; BLOCK_SIZE];
+		let plain_text_value = b"Hello PBA Team, This is a fun Activity!".to_vec();
+
+		let encrypted_value = cbc_encrypt(plain_text_value.clone(), key);
+		let decrypted_value = cbc_decrypt(encrypted_value, key);
+
+		assert_eq!(plain_text_value, decrypted_value);
+	}
+
+	#[test]
+	fn test_cbc_encrypt_decrypt_with_padding() {
+		let key = [0u8; BLOCK_SIZE];
+		let plain_text_value = b"16-byte-block-msg".to_vec();
+
+		let encrypted_value = cbc_encrypt(plain_text_value.clone(), key);
+		let decrypted_value = cbc_decrypt(encrypted_value, key);
+
+		assert_eq!(plain_text_value, decrypted_value);
+	}
+
+	#[test]
+	fn test_cbc_encrypt_decrypt_empty_message() {
+		let key = [0u8; BLOCK_SIZE];
+		let plain_text_value = vec![];
+
+		let encrypted_value = cbc_encrypt(plain_text_value.clone(), key);
+		let decrypted_value = cbc_decrypt(encrypted_value, key);
+
+		assert_eq!(plain_text_value, decrypted_value);
+	}
+
+	#[test]
+    fn test_ecb_encrypt() {
+        let plain_text: Vec<u8> = vec![1, 2, 3];
+        let key: [u8; 16] = [3; 16];
+        let encrypted = ecb_encrypt(plain_text, key);
+        assert_eq!(encrypted, vec![2, 1, 0]);
+	}
+
+    #[test]
+    fn test_ecb_decrypt() {
+        let cipher_text: Vec<u8> = vec![2, 1, 0];
+        let key: [u8; 16] = [3; 16];
+        let decrypted = ecb_decrypt(cipher_text, key);
+        assert_eq!(decrypted, vec![1, 2, 3]);
+	}
+
+    #[test]
+    fn test_ctr() {
+        let key: [u8; BLOCK_SIZE] = [2; BLOCK_SIZE];
+        let plain_text = b"Hello, world!".to_vec();
+
+        let cipher_text = ctr_encrypt(plain_text.clone(), key);
+
+        let decrypted_text = ctr_decrypt(cipher_text.clone(), key);
+
+        assert_eq!(plain_text, decrypted_text);
+    }
+
+	#[test]
+    fn test_ctr_encrypt_decrypt() {
+        let key = [0u8; BLOCK_SIZE];
+        let plain_text_value = b"Hello PBA Team, This is another fun activity!".to_vec();
+
+        let encrypted_value = ctr_encrypt(plain_text_value.clone(), key);
+        let decrypted_value = ctr_decrypt(encrypted_value, key);
+
+        assert_eq!(plain_text_value, decrypted_value);
+    }
+
+    #[test]
+    fn test_ctr_encrypt_decrypt_with_padding() {
+        let key = [0u8; BLOCK_SIZE];
+        let plain_text_value = b"16-byte-block-msg".to_vec();
+
+        let encrypted_value = ctr_encrypt(plain_text_value.clone(), key);
+        let decrypted_value = ctr_decrypt(encrypted_value, key);
+
+        assert_eq!(plain_text_value, decrypted_value);
+    }
+
 }
