@@ -20,9 +20,28 @@ use aes::{
 const BLOCK_SIZE: usize = 16;
 
 fn main() {
-	// todo!("Maybe this should be a library crate. TBD");
-    println!("")
+    let mut rng = rand::thread_rng();
+    let key: [u8; BLOCK_SIZE] = rng.gen();
+    let plain_text = b"Hello, world!".to_vec();
 
+    
+    let padded_text = pad(plain_text.clone());
+    let grouped_text = group(padded_text);
+
+   // ECB
+    let ecb_encrypted = ecb_encrypt(plain_text.clone(), key);
+    let ecb_decrypted = ecb_decrypt(ecb_encrypted, key);
+    println!("ECB decrypted: {:?}", String::from_utf8(ecb_decrypted));
+
+    // CBC
+    let cbc_encrypted = cbc_encrypt(grouped_text.clone(), key);
+    let cbc_decrypted = cbc_decrypt(cbc_encrypted, key);
+    println!("CBC decrypted: {:?}", un_pad(un_group(cbc_decrypted)));
+
+    // CTR
+    let ctr_encrypted = ctr_encrypt(plain_text.clone(), key);
+    let ctr_decrypted = ctr_decrypt(ctr_encrypted, key);
+    println!("CTR decrypted: {:?}", String::from_utf8(ctr_decrypted));
 }
 
 /// Simple AES encryption
