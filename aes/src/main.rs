@@ -212,10 +212,10 @@ fn ctr_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
     let nonce: u64 = rng.gen();
     let mut counter: u64 = 0;
     let mut cipher_text = vec![];
-
+	let padded_text = pad(plain_text);
     cipher_text.extend(&nonce.to_ne_bytes());
 
-    for block in plain_text.chunks(BLOCK_SIZE) {
+    for block in padded_text.chunks(BLOCK_SIZE) {
         let mut nonce_counter = [0u8; BLOCK_SIZE];
         nonce_counter[..8].copy_from_slice(&nonce.to_ne_bytes());
         nonce_counter[8..].copy_from_slice(&counter.to_ne_bytes());
@@ -243,7 +243,7 @@ fn ctr_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
         counter += 1;
     }
 
-    plain_text
+    un_pad(plain_text)
 }
 
 #[cfg(test)]
@@ -289,6 +289,7 @@ mod tests {
         let key: [u8; 16] = [3; 16];
         let encrypted = ecb_encrypt(plain_text, key);
         assert_eq!(encrypted, vec![2, 1, 0]);
+	}
 
     #[test]
     fn test_ecb_decrypt() {
@@ -296,6 +297,7 @@ mod tests {
         let key: [u8; 16] = [3; 16];
         let decrypted = ecb_decrypt(cipher_text, key);
         assert_eq!(decrypted, vec![1, 2, 3]);
+	}
 
     #[test]
     fn test_ctr() {
@@ -308,4 +310,27 @@ mod tests {
 
         assert_eq!(plain_text, decrypted_text);
     }
+
+	#[test]
+    fn test_ctr_encrypt_decrypt() {
+        let key = [0u8; BLOCK_SIZE];
+        let plain_text_value = b"Hello PBA Team, This is another fun activity!".to_vec();
+
+        let encrypted_value = ctr_encrypt(plain_text_value.clone(), key);
+        let decrypted_value = ctr_decrypt(encrypted_value, key);
+
+        assert_eq!(plain_text_value, decrypted_value);
+    }
+
+    #[test]
+    fn test_ctr_encrypt_decrypt_with_padding() {
+        let key = [0u8; BLOCK_SIZE];
+        let plain_text_value = b"16-byte-block-msg".to_vec();
+
+        let encrypted_value = ctr_encrypt(plain_text_value.clone(), key);
+        let decrypted_value = ctr_decrypt(encrypted_value, key);
+
+        assert_eq!(plain_text_value, decrypted_value);
+    }
+
 }
