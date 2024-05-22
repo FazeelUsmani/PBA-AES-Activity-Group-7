@@ -208,12 +208,42 @@ fn xor_blocks(a: [u8; BLOCK_SIZE], b: [u8; BLOCK_SIZE]) -> [u8; BLOCK_SIZE] {
 /// Once again, you will need to generate a random nonce which is 64 bits long. This should be
 /// inserted as the first block of the ciphertext.
 fn ctr_encrypt(plain_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	// Remember to generate a random nonce
-	todo!()
+    let mut rng = rand::thread_rng();
+    let nonce: u64 = rng.gen();
+    let mut counter: u64 = 0;
+    let mut cipher_text = vec![];
+
+    cipher_text.extend(&nonce.to_ne_bytes());
+
+    for block in plain_text.chunks(BLOCK_SIZE) {
+        let mut nonce_counter = [0u8; BLOCK_SIZE];
+        nonce_counter[..8].copy_from_slice(&nonce.to_ne_bytes());
+        nonce_counter[8..].copy_from_slice(&counter.to_ne_bytes());
+        let encrypted_v = ecb_encrypt(nonce_counter.to_vec(), key);
+        let cipher_block: Vec<u8> = block.iter().zip(encrypted_v.iter()).map(|(&x1, &x2)| x1 ^ x2).collect();
+        cipher_text.extend(cipher_block);
+        counter += 1;
+    }
+
+    cipher_text
 }
 
 fn ctr_decrypt(cipher_text: Vec<u8>, key: [u8; BLOCK_SIZE]) -> Vec<u8> {
-	todo!()
+    let nonce = u64::from_ne_bytes(cipher_text[..8].try_into().unwrap());
+    let mut counter: u64 = 0;
+    let mut plain_text = vec![];
+
+    for block in cipher_text[8..].chunks(BLOCK_SIZE) {
+        let mut nonce_counter = [0u8; BLOCK_SIZE];
+        nonce_counter[..8].copy_from_slice(&nonce.to_ne_bytes());
+        nonce_counter[8..].copy_from_slice(&counter.to_ne_bytes());
+        let encrypted_v = ecb_encrypt(nonce_counter.to_vec(), key);
+        let plain_block: Vec<u8> = block.iter().zip(encrypted_v.iter()).map(|(&x1, &x2)| x1 ^ x2).collect();
+        plain_text.extend(plain_block);
+        counter += 1;
+    }
+
+    plain_text
 }
 
 #[cfg(test)]
