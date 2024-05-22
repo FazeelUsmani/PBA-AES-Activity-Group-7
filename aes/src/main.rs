@@ -296,4 +296,16 @@ mod tests {
         let key: [u8; 16] = [3; 16];
         let decrypted = ecb_decrypt(cipher_text, key);
         assert_eq!(decrypted, vec![1, 2, 3]);
+
+    #[test]
+    fn test_ctr() {
+        let key: [u8; BLOCK_SIZE] = [2; BLOCK_SIZE];
+        let plain_text = b"Hello, world!".to_vec();
+
+        let cipher_text = ctr_encrypt(plain_text.clone(), key);
+
+        let decrypted_text = ctr_decrypt(cipher_text.clone(), key);
+
+        assert_eq!(plain_text, decrypted_text);
+    }
 }
